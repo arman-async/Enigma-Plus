@@ -73,3 +73,35 @@ class Enigma:
         pass
 
 
+def load_rotor_file(file_rotors: Path, password: str, Base:List[str]) -> List[Rotor]:
+
+    rotors_str: List[str] = []
+    with open(file_rotors, 'r') as f:
+        data: List[str] = "".join(f.readlines()).split(';')
+        last_len = len(data[0])
+        for rotor in data:
+            if len(rotor) == 0:
+                continue
+            elif len(rotor) != last_len:
+                raise ValueError(f"rotor length is not consistent: {len(rotor)} != {last_len}")
+            last_len = len(rotor)
+            rotors_str.append(rotor)
+
+    password_list = [
+        Base.index(char)
+        for char in password
+    ]
+    while len(password_list) < len(rotors_str):
+        password_list.insert(0,1)
+    
+    return [
+        Rotor(rotor_str, rotate_count=password_list.pop(0))
+        for rotor_str in rotors_str
+    ]
+
+
+if __name__ == "__main__":
+    # TEST Devpelopment
+    rotors = load_rotor_file("new.rotors", "ENIGMA", BASE64)
+    for rotor in rotors:
+        print(rotor)
