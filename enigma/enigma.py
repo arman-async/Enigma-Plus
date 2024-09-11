@@ -25,4 +25,27 @@ class Rotor:
         f"position: {self._position} - "\
         f"rotate_count: {self._rotate_count} - "\
         f"rotor_len: {self._rotor_len} >"
+
+
+class Reflector:
+    def __init__(self, reflector: List[str]) -> None:
+        self.reflector: List[str] = reflector
     
+    def __getitem__(self, input: int | str) -> str:
+        if isinstance(input, int):
+            index = input
+        elif isinstance(input, str):
+            try:
+                index = self.reflector.index(input)
+            except ValueError:
+                raise ValueError(f"{input} not in reflector")
+        else:
+            raise TypeError(f"input must be int or str, not {type(input)}")
+        
+        return self.reflector[len(self.reflector) - index - 1]
+    
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}<length: {len(self.reflector)}>"
+    
+    def __len__(self) -> int:
+        return len(self.reflector)
