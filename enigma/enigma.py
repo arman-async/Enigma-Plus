@@ -1,25 +1,91 @@
 from typing import *
+from array import array
 from pathlib import Path
+from bidict import bidict
+import base64
+import sys
+import time
 
-BASE64 = "0123456789+/ABCDEFGHIJKLMNOPQRSTUVWXYZ=abcdefghijklmnopqrstuvwxyz"
+class Characters:
+    def __init__(self, chars: str) -> None:
+        # Speed ​​is important from memory
+        self.char = dict({char:index for index, char in enumerate(chars)})
+        self.inv = dict({index:char for index, char in enumerate(chars)})
+
+    def get_index(self, char: str) -> int:
+        return self.char[char]
+
+    def get_char(self, index: int) -> str:
+        return self.inv[index] 
+
+    def export_str(self) -> str:
+        return "".join(self.char.keys())
+
+    def export_list(self) -> List[str]:
+        return list(self.char.keys())
+    
+    def export_generator(self) -> Generator[str, None, None]:
+        for char in self.char.keys():
+            yield char
+    
+    def __len__(self) -> int:
+        return len(self.char)
+    
+    def __str__(self) -> str:
+        return f'{self.char.keys()}'
+    
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}<length: {len(self.char)} - {self.char}>'
+
 
 class Rotor:
-    def __init__(self, rotor: List[str], offset: int = 0, rotate_count: int = 1) -> None:
-        self.rotor: List[str] = rotor
+
+    def __init__(
+            self,
+            rotor: str,
+            characters: Characters,
+            offset: int = 0,
+            rotate_count: int = 1,
+            
+    ) -> None:
+        self.rotor = Characters(rotor)
+        self.characters: Characters = characters
         self.offset: int = offset
         self._position: int = offset
         self._rotate_count: int = rotate_count
         self._rotor_len: int = len(self.rotor)
+
     
-    def rotate(self) -> None:
-        if self._position == (self._rotor_len - 1):
-            self._position = 0
+    def rotate(self) -> bool:
+        # We perform rotation operations at a very low cost
+        old_position = self._position
+        self._position = (self._position + self._rotate_count) % self._rotor_len
+        return (self._position < old_position)
+
+
+    def __getitem__(self, input: int) -> str:
+        return self.rotor[input]
+    
+    def input_form_left(self, input: int| str) -> str:
+        if isinstance(input, int):
+            index = (input + self._position)
+        elif isinstance(input, str):
+            index = (self.characters.get_index(input) + self._position)
         else:
-            self._position = (self._position + self._rotate_count) % len(self.rotor)
+            raise TypeError(f"input must be int or str, not {type(input)}")
+        index = index % self._rotor_len
+        return self.rotor.get_char(index)
 
-    def __getitem__(self, index: int) -> str:
-        return self.rotor[(self._position + index) % len(self.rotor)]
-
+    def input_form_right(self, input: int| str) -> str:
+        if isinstance(input, int):
+            index = (input + self._position)
+        elif isinstance(input, str):
+            index = (self.rotor.get_index(input) + self._position)
+        else:
+            raise TypeError(f"input must be int or str, not {type(input)}")
+        index = index % self._rotor_len
+        return self.characters.get_char(index)
+    
     def __str__(self) -> str:
         return\
         f"{self.__class__.__name__}< "\
@@ -30,33 +96,31 @@ class Rotor:
 
 
 class Reflector:
-    def __init__(self, reflector: List[str]) -> None:
-        self.reflector: List[str] = reflector
+    def __init__(self, chars: Characters) -> None:
+        self.chars: Characters = chars
     
     def __getitem__(self, input: int | str) -> str:
         if isinstance(input, int):
             index = input
         elif isinstance(input, str):
-            try:
-                index = self.reflector.index(input)
-            except ValueError:
-                raise ValueError(f"{input} not in reflector")
+            index = self.chars.get_index(input)
         else:
             raise TypeError(f"input must be int or str, not {type(input)}")
-        
-        return self.reflector[len(self.reflector) - index - 1]
-    
+        return self.chars.get_char(len(self.chars) - index - 1)
+
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}<length: {len(self.reflector)}>"
+        return f"{self.__class__.__name__}<length: {len(self.chars)}>"
     
     def __len__(self) -> int:
-        return len(self.reflector)
+        return len(self.chars)
 
 
 class Enigma:
-    def __init__(self, rotors: List[Rotor], password: str, reflector:Reflector=None) -> None:
-        self.rotors: List[Rotor] = rotors
-        self.reflector: Reflector = reflector if reflector else Reflector(BASE64)
+    def __init__(self, characters:Characters, rotors: List[Rotor], password: str, reflector:Reflector=None) -> None:
+        self.characters: Characters = characters
+        self.rotors: List[Rotor] = rotors.copy()
+        self.rotors_position_init_status: Tuple = tuple(rotor._position for rotor in self.rotors)
+        self.reflector: Reflector = reflector if reflector else Reflector(characters)
         self.password: str = password
         self._rotor_count: int = len(self.rotors)
 
@@ -69,39 +133,141 @@ class Enigma:
     def __len__(self) -> int:
         return self._rotor_count
 
+    def _rotorize_from_left(self, char: str) -> str:
+        char = char
+        for rotor in self.rotors:
+            char = rotor.input_form_left(char)
+        return char
+    
+    def _rotorize_from_right(self, char: str) -> str:
+        char = char
+        for rotor in reversed(self.rotors):
+            char = rotor.input_form_right(char)
+        return char
+
+    def rotors_reset(self) -> None:
+        for rotor, position in zip(self.rotors, self.rotors_position_init_status):
+            rotor._position = position
+
+    
     def encrypt(self, string: str) -> str:
-        pass
+        """
+            encrypt(string) -> string
+
+            Encrypts the given string using the Enigma machine
+                and returns the encrypted string
+
+            ### warning: 
+                #### Do not use this function to encrypt data larger than 8 kilobytes!
+                    #### For large data you can use (self.encrypt_generator) and (self.encrypt_generator_chunk).
+        """
+        # Warning: This function has been used a lot in this class!
+        #   You should never call function (self.rotors_reset()) in this function
+        result: array = array('i', [0] * len(string))
+        for _, char in enumerate(string):
+            rotorize_go = self._rotorize_from_left(char)
+            reflect = self.reflector[rotorize_go]
+            rotorize_back = self._rotorize_from_right(reflect)
+            result[_] = self.characters.get_index(rotorize_back)
+        return ''.join(
+            self.characters.get_char(index)
+            for index in result
+        )
+    
+
+    def encrypt_generator(self, string: str) -> Generator[str, None, None]:
+        for char in string:
+            rotorize_go = self._rotorize_from_left(char)
+            reflect = self.reflector[rotorize_go]
+            rotorize_back = self._rotorize_from_right(reflect)
+            yield rotorize_back
+
+    def encrypt_generator_chunk(self, string: str, chunk_size: int=128) -> Generator[str, None, None]:
+        for index in range(0, len(string), chunk_size):
+            yield self.encrypt(string[index:index+chunk_size])
+    
+    def decrypt(self, string: str) -> str:
+        """
+            decrypt(string) -> string
+
+            Dencrypts the given string using the Enigma machine
+                and returns the dencrypted string
+
+            ### warning: 
+                #### Do not use this function to dencrypt data larger than 8 kilobytes!
+                    #### For large data you can use (self.decrypt_generator) and (self.decrypt_generator_chunk).
+        """
+        self.rotors_reset()
+        return self.encrypt(string)
+    
+    def decrypt_generator(self, string: str) -> Generator[str, None, None]:
+        self.rotors_reset()
+        return self.encrypt_generate(string)
+    
+    def decrypt_generator_chunk(self, string: str, chunk_size: int=128) -> Generator[str, None, None]:
+        self.rotors_reset()
+        return self.encrypt_generator_chunk(string, chunk_size)
 
 
-def load_rotor_file(file_rotors: Path, password: str, Base:List[str]) -> List[Rotor]:
+
+def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Characters]:
 
     rotors_str: List[str] = []
     with open(file_rotors, 'r') as f:
         data: List[str] = "".join(f.readlines()).split(';')
-        last_len = len(data[0])
+        Base = data[0]
+        data: List[str] = data[1:]
+        base_len = len(Base)
         for rotor in data:
-            if len(rotor) == 0:
+            rotor_len = len(rotor)
+            if rotor_len == 0:
                 continue
-            elif len(rotor) != last_len:
-                raise ValueError(f"rotor length is not consistent: {len(rotor)} != {last_len}")
-            last_len = len(rotor)
+            elif rotor_len != base_len:
+                raise ValueError(f"rotor length is not consistent: {rotor_len} != {base_len}")
             rotors_str.append(rotor)
 
+    characters = Characters(Base)
+
     password_list = [
-        Base.index(char)
+        characters.get_index(char)
         for char in password
     ]
     while len(password_list) < len(rotors_str):
-        password_list.insert(0,1)
+        password_list.insert(0, 0)
     
-    return [
-        Rotor(rotor_str, rotate_count=password_list.pop(0))
-        for rotor_str in rotors_str
-    ]
+    rotors: List[Rotor] = []
+    for rotor_str in rotors_str:
+        pass_char_index: int = password_list.pop(0)
+        rotor = Rotor(
+            rotor_str,
+            characters=characters,
+            offset=0,
+            rotate_count=pass_char_index,
+        )
+        rotors.append(rotor)
+
+    return (rotors, characters)
 
 
 if __name__ == "__main__":
-    # TEST Devpelopment
-    rotors = load_rotor_file("new.rotors", "ENIGMA", BASE64)
-    for rotor in rotors:
-        print(rotor)
+    # # TEST Devpelopment
+    rotors, characters = load_rotor_file("32.rotors", "ENIGMA")
+    enigma = Enigma(characters, rotors.copy(), "ENIGMA")
+    data = "Hello Enigma, "*10000
+
+    b64 = base64.b64encode(data.encode('utf-8')).decode('utf-8')
+    start_time = time.time()
+    data_encrypt = enigma.encrypt(b64)
+    # data_decrypt = enigma.decrypt(data_encrypt)
+    end_time = time.time()
+    # text = base64.b64decode(data_decrypt.encode('utf-8')).decode('utf-8')
+
+    print(f'data: {data[:8]}...')
+    print(f'- base64: {b64[:8]}...')
+    print(f'-- encrypt: {data_encrypt[:8]}...')
+    # print(f'-- decrypt: {data_decrypt[:8]}...')
+    # print(f'text: {text[:8]}...')
+    print(f'length: {len(data)}')
+    print(f'elapsed time: {end_time - start_time}')
+
+    input('Press Enter to exit...')

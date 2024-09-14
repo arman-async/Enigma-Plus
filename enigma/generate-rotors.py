@@ -17,9 +17,12 @@ args = parser.parse_args()
 
 BASE64 = "0123456789+/ABCDEFGHIJKLMNOPQRSTUVWXYZ=abcdefghijklmnopqrstuvwxyz"
 def random_rotor(charset:str=BASE64)-> str:
-    return "".join(random.choices(charset, k=len(charset)))
+    charset = list(charset)
+    random.shuffle(charset)
+    return "".join(charset)
 
 with open(f'{args.output}.rotors', 'w') as f:
+    f.write(f'{BASE64};')
     for _ in range(args.rotor_count):
         rotor = f'{random_rotor()};'
         f.write(rotor)
