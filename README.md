@@ -1,4 +1,6 @@
 # Enigma Plus
+![Fig+3+-+3+wheel+enigma](https://github.com/user-attachments/assets/5b96531c-4357-4f18-8cb4-1916bd37a2de)
+
 ### An attempt to modernize the Enigma cryptosystem
 
 - You can make the device with your favorite characters
