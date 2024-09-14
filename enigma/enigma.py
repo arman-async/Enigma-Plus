@@ -38,6 +38,7 @@ class Characters:
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}<length: {len(self.char)} - {self.char}>'
 
+
 class Password:
     def __init__(self, password: str, BaseCharacters: Characters) -> None:
         """
@@ -54,6 +55,9 @@ class Password:
             raise ValueError(f"Password is not valid: {password}, The {validation} character does not exist in the bit")
         
     def validate(self) -> bool| str:
+        if len(self.password) > len(self.BaseCharacters):
+            raise ValueError(f"Password length is too long: {len(self.password)} > {len(self.BaseCharacters)}")
+        
         for char in self.password:
             if char not in self.BaseCharacters.char:
                 return char
@@ -81,7 +85,6 @@ class Password:
         return len(self.password)
     
 
-
 class Rotor:
     def __init__(
             self,
@@ -91,7 +94,6 @@ class Rotor:
             rotate_count: int = 1,
             
     ) -> None:
-        "Waring: Don't set value(offset) to anything but 0 for now"
         self.rotor = Characters(rotor[offset:] + rotor[:offset])
         self.characters: Characters = characters
         self._position: int = 0
@@ -159,7 +161,25 @@ class Reflector:
 
 
 class Enigma:
-    def __init__(self, characters:Characters, rotors: List[Rotor], password: Password, reflector:Reflector=None) -> None:
+    def __init__(
+            self,
+            characters:Characters,
+            rotors: List[Rotor],
+            password: Password,
+            reflector:Reflector=None
+        ) -> None:
+        """
+            Exmple:
+            >>> from engima import Enigma
+            >>> from base64 import b64decode, b64encode
+            >>> password = '123456'
+            >>> rotors, characters, password = load_rotor_file(temp_file, password)
+            >>> enigma = Enigma(characters, rotors, password)
+            >>> data = "<<String>>"
+            >>> data = b64encode(data.encode('utf-8')).decode('utf-8')
+            >>> data_encrypt = enigma.encrypt(str(data))
+            >>> data_decrypt = enigma.decrypt(data_encrypt)
+        """
         self.characters: Characters = characters
         self.rotors: List[Rotor] = rotors.copy()
         self.rotors_position_init_status: Tuple = tuple(rotor._position for rotor in self.rotors)
@@ -256,6 +276,7 @@ def export_base_string_from_file(file_base: Path) -> str:
         first_line = f.readline()
         return first_line.split(';')[0]
 
+
 def load_rotor_file(file_rotors: Path, password: Password| str) -> Tuple[List[Rotor], Characters, Password]:
     """
         Example:
@@ -304,6 +325,7 @@ def load_rotor_file(file_rotors: Path, password: Password| str) -> Tuple[List[Ro
         rotors.append(rotor)
     return (rotors, characters, password)
 
+
 def create_enigma(file_rotors: Path, password: str) -> Enigma:
     """
         Example:
@@ -329,5 +351,6 @@ def create_enigma(file_rotors: Path, password: str) -> Enigma:
 
 
 if __name__ == "__main__":
-    print('run with "python -m enigma"')
+    print('for use please "from enigma import Enigma"')
+    # print('run with "python -m enigma"')
     print('for test please use "pytest test_enigma.py"')
