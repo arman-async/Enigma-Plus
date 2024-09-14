@@ -39,7 +39,6 @@ class Characters:
 
 
 class Rotor:
-
     def __init__(
             self,
             rotor: str,
@@ -48,10 +47,10 @@ class Rotor:
             rotate_count: int = 1,
             
     ) -> None:
-        self.rotor = Characters(rotor)
+        "Waring: Don't set value(offset) to anything but 0 for now"
+        self.rotor = Characters(rotor[offset:] + rotor[:offset])
         self.characters: Characters = characters
-        self.offset: int = offset
-        self._position: int = offset
+        self._position: int = 0
         self._rotate_count: int = rotate_count
         self._rotor_len: int = len(self.rotor)
 
@@ -119,6 +118,7 @@ class Enigma:
     def __init__(self, characters:Characters, rotors: List[Rotor], password: str, reflector:Reflector=None) -> None:
         self.characters: Characters = characters
         self.rotors: List[Rotor] = rotors.copy()
+        self.copy_rotors: List[Rotor] = rotors.copy()
         self.rotors_position_init_status: Tuple = tuple(rotor._position for rotor in self.rotors)
         self.reflector: Reflector = reflector if reflector else Reflector(characters)
         self.password: str = password
@@ -146,8 +146,10 @@ class Enigma:
         return char
 
     def rotors_reset(self) -> None:
-        for rotor, position in zip(self.rotors, self.rotors_position_init_status):
-            rotor._position = position
+        # for rotor, position in zip(self.rotors, self.rotors_position_init_status):
+        #     rotor._position = position
+        #     print(rotor)
+        self.rotors = self.copy_rotors.copy()
 
     
     def encrypt(self, string: str) -> str:
@@ -210,8 +212,23 @@ class Enigma:
 
 
 
-def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Characters]:
+def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Characters, str]:
+    """
+        Example:
+        >>> password = '123456'
+        >>> rotors, characters, password = load_rotor_file(file_rotors, password)
+        >>> Enigma(characters, rotors, password)
+        
+        @param file_rotors: Path\
+              A file containing a string of rotors\
+              you can create your own rotor with the script (generate_rotors.py --help).
+        
+        @param password: str\
+            - Your password\
+            Your password must consist of your base characters (by default BASE64)
 
+
+    """
     rotors_str: List[str] = []
     with open(file_rotors, 'r') as f:
         data: List[str] = "".join(f.readlines()).split(';')
@@ -240,33 +257,35 @@ def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Char
         pass_char_index: int = password_list.pop(0)
         rotor = Rotor(
             rotor_str,
+            offset=pass_char_index,
             characters=characters,
-            offset=0,
             rotate_count=pass_char_index,
         )
         rotors.append(rotor)
-
     return (rotors, characters)
 
 
 if __name__ == "__main__":
     # # TEST Devpelopment
-    rotors, characters = load_rotor_file("32.rotors", "ENIGMA")
-    enigma = Enigma(characters, rotors.copy(), "ENIGMA")
-    data = "Hello Enigma, "*10000
+    password = "ENIGMa"
+    rotors, characters = load_rotor_file(r"32.rotors", password)
+    enigma = Enigma(characters, rotors.copy(), password)
+    data = "Hello Enigma "
+    print(f'data: {data}')
 
     b64 = base64.b64encode(data.encode('utf-8')).decode('utf-8')
+    print(f'- base64: {b64}')
+
     start_time = time.time()
     data_encrypt = enigma.encrypt(b64)
-    # data_decrypt = enigma.decrypt(data_encrypt)
-    end_time = time.time()
-    # text = base64.b64decode(data_decrypt.encode('utf-8')).decode('utf-8')
+    print(f'-- encrypt: {data_encrypt}')
 
-    print(f'data: {data[:8]}...')
-    print(f'- base64: {b64[:8]}...')
-    print(f'-- encrypt: {data_encrypt[:8]}...')
-    # print(f'-- decrypt: {data_decrypt[:8]}...')
-    # print(f'text: {text[:8]}...')
+    data_decrypt = enigma.decrypt(data_encrypt)
+    end_time = time.time()
+    print(f'-- decrypt: {data_decrypt}')
+
+    text = base64.b64decode(data_decrypt.encode('utf-8')).decode('utf-8')
+    print(f'text: {text}')
     print(f'length: {len(data)}')
     print(f'elapsed time: {end_time - start_time}')
 
