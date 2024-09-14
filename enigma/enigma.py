@@ -118,7 +118,6 @@ class Enigma:
     def __init__(self, characters:Characters, rotors: List[Rotor], password: str, reflector:Reflector=None) -> None:
         self.characters: Characters = characters
         self.rotors: List[Rotor] = rotors.copy()
-        self.copy_rotors: List[Rotor] = rotors.copy()
         self.rotors_position_init_status: Tuple = tuple(rotor._position for rotor in self.rotors)
         self.reflector: Reflector = reflector if reflector else Reflector(characters)
         self.password: str = password
@@ -146,11 +145,8 @@ class Enigma:
         return char
 
     def rotors_reset(self) -> None:
-        # for rotor, position in zip(self.rotors, self.rotors_position_init_status):
-        #     rotor._position = position
-        #     print(rotor)
-        self.rotors = self.copy_rotors.copy()
-
+        for rotor, position in zip(self.rotors, self.rotors_position_init_status):
+            rotor._position = position
     
     def encrypt(self, string: str) -> str:
         """
