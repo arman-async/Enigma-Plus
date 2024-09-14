@@ -202,7 +202,7 @@ class Enigma:
     
     def decrypt_generator(self, string: str) -> Generator[str, None, None]:
         self.rotors_reset()
-        return self.encrypt_generate(string)
+        return self.encrypt_generator(string)
     
     def decrypt_generator_chunk(self, string: str, chunk_size: int=128) -> Generator[str, None, None]:
         self.rotors_reset()
