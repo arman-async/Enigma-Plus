@@ -173,7 +173,7 @@ class Enigma:
             >>> from engima import Enigma
             >>> from base64 import b64decode, b64encode
             >>> password = '123456'
-            >>> rotors, characters, password = load_rotor_file(temp_file, password)
+            >>> rotors, characters, password = load_rotor_file(file_rotors, password)
             >>> enigma = Enigma(characters, rotors, password)
             >>> data = "<<String>>"
             >>> data = b64encode(data.encode('utf-8')).decode('utf-8')
