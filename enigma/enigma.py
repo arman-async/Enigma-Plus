@@ -6,6 +6,7 @@ import base64
 import sys
 import time
 
+
 class Characters:
     def __init__(self, chars: str) -> None:
         # Speed ​​is important from memory
@@ -36,6 +37,49 @@ class Characters:
     
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}<length: {len(self.char)} - {self.char}>'
+
+class Password:
+    def __init__(self, password: str, BaseCharacters: Characters) -> None:
+        """
+            Example:
+            >>> chars = export_base_string_from_file("32.rotors")
+            >>> chars = Characters(chars)
+            >>> password = Password('123456', chars)
+
+        """
+        self.password = password
+        self.BaseCharacters = BaseCharacters
+        validation = self.validate()
+        if not(validation is True):
+            raise ValueError(f"Password is not valid: {password}, The {validation} character does not exist in the bit")
+        
+    def validate(self) -> bool| str:
+        for char in self.password:
+            if char not in self.BaseCharacters.char:
+                return char
+        return True
+    
+    def export_index_chars(self) -> List[int]:
+        return [self.BaseCharacters.get_index(char) for char in self.password]
+    
+    def export_index_chars_formt(self) -> List[List]:
+        ""
+        len_password = len(self)
+        len_base = len(self.BaseCharacters)
+        result = [1]*len_base
+        result[len_base - len_password: ] = [self.BaseCharacters.get_index(char) for char in self.password]
+        return result
+
+
+    def __str__(self) -> str:
+        return self.password
+    
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}<length: {len(self.password)} - {self.password}>'
+    
+    def __len__(self) -> int:
+        return len(self.password)
+    
 
 
 class Rotor:
@@ -115,12 +159,12 @@ class Reflector:
 
 
 class Enigma:
-    def __init__(self, characters:Characters, rotors: List[Rotor], password: str, reflector:Reflector=None) -> None:
+    def __init__(self, characters:Characters, rotors: List[Rotor], password: Password, reflector:Reflector=None) -> None:
         self.characters: Characters = characters
         self.rotors: List[Rotor] = rotors.copy()
         self.rotors_position_init_status: Tuple = tuple(rotor._position for rotor in self.rotors)
         self.reflector: Reflector = reflector if reflector else Reflector(characters)
-        self.password: str = password
+        self.password: Password = password
         self._rotor_count: int = len(self.rotors)
 
     def __str__(self) -> str:
@@ -207,8 +251,12 @@ class Enigma:
         return self.encrypt_generator_chunk(string, chunk_size)
 
 
+def export_base_string_from_file(file_base: Path) -> str:
+    with open(file_base, 'r') as f:
+        first_line = f.readline()
+        return first_line.split(';')[0]
 
-def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Characters, str]:
+def load_rotor_file(file_rotors: Path, password: Password| str) -> Tuple[List[Rotor], Characters, Password]:
     """
         Example:
         >>> password = '123456'
@@ -219,7 +267,7 @@ def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Char
               A file containing a string of rotors\
               you can create your own rotor with the script (generate_rotors.py --help).
         
-        @param password: str\
+        @param password: Password\
             - Your password\
             Your password must consist of your base characters (by default BASE64)
 
@@ -240,13 +288,9 @@ def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Char
             rotors_str.append(rotor)
 
     characters = Characters(Base)
-
-    password_list = [
-        characters.get_index(char)
-        for char in password
-    ]
-    while len(password_list) < len(rotors_str):
-        password_list.insert(0, 0)
+    if isinstance(password, str):
+        password = Password(password, characters)
+    password_list = password.export_index_chars_formt()
     
     rotors: List[Rotor] = []
     for rotor_str in rotors_str:
@@ -258,31 +302,32 @@ def load_rotor_file(file_rotors: Path, password: str) -> Tuple[List[Rotor], Char
             rotate_count=pass_char_index,
         )
         rotors.append(rotor)
-    return (rotors, characters)
+    return (rotors, characters, password)
+
+def create_enigma(file_rotors: Path, password: str) -> Enigma:
+    """
+        Example:
+        >>> password = '123456'
+        >>> enigma = create_enigma(file_base, file_rotors, password)
+        >>> enigma
+        <enigma.enigma.Enigma object at 0x7f5e9e9b9f10>
+
+        @param file_base: Path\
+              A file containing a string of characters\
+              you can create your own characters with the script (generate_characters.py --help).
+
+        @param password: str\
+            - Your password\
+            Your password must consist of your base characters (by default BASE64)
+
+    """
+    characters = export_base_string_from_file(file_rotors)
+    _password = Password(password, Characters(characters))
+    rotors, characters, password = load_rotor_file(file_rotors, _password)
+    return Enigma(characters, rotors, _password)
+
 
 
 if __name__ == "__main__":
-    # # TEST Devpelopment
-    password = "ENIGMa"
-    rotors, characters = load_rotor_file(r"32.rotors", password)
-    enigma = Enigma(characters, rotors.copy(), password)
-    data = "Hello Enigma "
-    print(f'data: {data}')
-
-    b64 = base64.b64encode(data.encode('utf-8')).decode('utf-8')
-    print(f'- base64: {b64}')
-
-    start_time = time.time()
-    data_encrypt = enigma.encrypt(b64)
-    print(f'-- encrypt: {data_encrypt}')
-
-    data_decrypt = enigma.decrypt(data_encrypt)
-    end_time = time.time()
-    print(f'-- decrypt: {data_decrypt}')
-
-    text = base64.b64decode(data_decrypt.encode('utf-8')).decode('utf-8')
-    print(f'text: {text}')
-    print(f'length: {len(data)}')
-    print(f'elapsed time: {end_time - start_time}')
-
-    input('Press Enter to exit...')
+    print('run with "python -m enigma"')
+    print('for test please use "pytest test_enigma.py"')
